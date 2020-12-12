@@ -19,12 +19,12 @@ typedef struct{
 }Command;
 
 int helpHandler(Command*,int, char*, int),goHandler(Command*,int, char*, int), mmHandler(Command*,int, char*, int), dmHandler(Command*,int, char*, int),
-disHandler(Command*,int, char*, int),lfHandler(Command*,int, char*, int),
-demoHandler(Command*,int, char*, int), outputHelp(Command*),clearString(char*, int), splitArgs(char*, char**),
-validateHexArgs(Command*, char*, unsigned char**,int , int ), strToLower(char *),
-decodeInstruction(unsigned char *, char *),
-mgetchar(), trim(char*, char*), addOperand(int , char *, unsigned char *, int),
-strToHex(char *, int);
+        disHandler(Command*,int, char*, int),lfHandler(Command*,int, char*, int),
+        demoHandler(Command*,int, char*, int), outputHelp(Command*),clearString(char*, int), splitArgs(char*, char**),
+        validateHexArgs(Command*, char*, unsigned char**,int , int ), strToLower(char *),
+        decodeInstruction(unsigned char *, char *),
+        mgetchar(), trim(char*, char*), addOperand(int , char *, unsigned char *, int),
+        strToHex(char *, int);
 
 char *mgets(char*, int, int), *addSuffix(int , char *, unsigned char *, int *), *decodeMode(int , char *, unsigned char *);
 
@@ -90,7 +90,14 @@ void main() {
 // ### Command Handlers ###
 
 // Help
-int helpHandler(Command *commands,int index, char* input, int partsCount){
+int helpHandler(Command *commands,int index, char* input, int partsCount)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the help command, checks for correct usage and outputs relevant helpful command information
+Functions used: outputHelp(), printf()
+Version: 1.0
+*/{
     if (partsCount > 1){
         printf("\nNo arguments required, Usage: %s\n", commands[index].usage);
     } // Continue command execution after warning
@@ -98,7 +105,14 @@ int helpHandler(Command *commands,int index, char* input, int partsCount){
 
     return 1;
 }
-int outputHelp(Command *commands){
+int outputHelp(Command *commands)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Outputs all the useful help command information.
+Functions used: printf()
+Version: 1.0
+*/{
     int c;
 
     printf("\n");
@@ -110,7 +124,15 @@ int outputHelp(Command *commands){
 }
 
 // Go
-int goHandler(Command *commands,int index, char* input, int partsCount){
+int goHandler(Command *commands,int index, char* input, int partsCount)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the go command,
+            Executes the specified place in memory
+Functions used: validateHexArgs()
+Version: 1.0
+*/{
     unsigned char*(*startPos)();
 
     if(!validateHexArgs(&commands[index], input, (unsigned char **) &startPos, partsCount, 1)) return 0;
@@ -121,7 +143,15 @@ int goHandler(Command *commands,int index, char* input, int partsCount){
 }
 
 // Memory modify
-int mmHandler(Command *commands,int index, char* input, int partsCount){
+int mmHandler(Command *commands,int index, char* input, int partsCount)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the modify memory command,
+            Allows the modifying of memory, byte by byte. Terminating with '.'
+Functions used: printf(), validateHexArgs(), sscanf(), mgets()
+Version: 1.0
+*/{
     char hexInput[3];
     unsigned char *startPos;
     unsigned int value;
@@ -148,7 +178,15 @@ int mmHandler(Command *commands,int index, char* input, int partsCount){
 }
 
 // Display memory
-int dmHandler(Command *commands,int index, char* input, int partsCount){
+int dmHandler(Command *commands,int index, char* input, int partsCount)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the display memory command,
+            Displays a specified section of memory, along with the equivalent ascii data
+Functions used: printf(), validateHexArgs()
+Version: 1.0
+*/{
     unsigned char *startPos, *lineStart;
     int lineCount;
 
@@ -184,7 +222,15 @@ int dmHandler(Command *commands,int index, char* input, int partsCount){
 }
 
 // Disassemble
-int disHandler(Command *commands,int index, char* input, int partsCount){
+int disHandler(Command *commands,int index, char* input, int partsCount)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the disAssembly command,
+            Disassembles machine code with a given start and end address.
+Functions used: clearString(), validateHexArgs(), printf(), decodeInstruction()
+Version: 1.0
+*/{
     unsigned char *startPos[2];
     char instruction[16];
     int iCount = 1;
@@ -205,7 +251,18 @@ int disHandler(Command *commands,int index, char* input, int partsCount){
     return 1;
 }
 
-int decodeInstruction(unsigned char *pos, char *instruction){
+int decodeInstruction(unsigned char *pos, char *instruction)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Used by disHandler
+            Given a start address, the machine code will be disassembled into assembly.
+            Returning back how many bytes were consumed within the single command,
+            signaling how many bytes to jump ahead for the next command.
+Functions used: sprintf(), addSuffix(), addOperand(), printf()
+Version: 1.0
+*/
+{
     int offset = 0, before = 0, is16Bit = 0;
     char *instructionStart = instruction;
 
@@ -261,7 +318,15 @@ int decodeInstruction(unsigned char *pos, char *instruction){
     return ++offset;
 }
 
-char *addSuffix(int before, char * instruction, unsigned char *pos, int * is16Bit){
+char *addSuffix(int before, char * instruction, unsigned char *pos, int * is16Bit)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Used by decodeInstruction
+            Adds the suffix (CommandType / register) onto the assembly instruction
+Functions used: sprintf()
+Version: 1.0
+*/{
     switch (*pos & 0xCF) {
         case 0xC3:
             instruction += sprintf(instruction,"dd");break;
@@ -298,7 +363,15 @@ char *addSuffix(int before, char * instruction, unsigned char *pos, int * is16Bi
     return instruction;
 }
 
-int addOperand(int before, char * instruction, unsigned char *pos, int is16Bit){
+int addOperand(int before, char * instruction, unsigned char *pos, int is16Bit)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Used by decodeInstruction
+            Adds the operand (Value) onto the assembly instruction
+Functions used: sprintf()
+Version: 1.0
+*/{
     int mask, offset = 0;
     mask = *pos & 0x30;
     if(mask == 0x00){
@@ -328,7 +401,15 @@ int addOperand(int before, char * instruction, unsigned char *pos, int is16Bit){
 }
 
 // Load file
-int lfHandler(Command *commands,int index, char* input, int partsCount){
+int lfHandler(Command *commands,int index, char* input, int partsCount)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handle the load file command.
+            Decodes an S record file, loading it into memory
+Functions used: printf(), strToHex(), mgetchar()
+Version: 1.0
+*/{
     int data, lineLength, count = 0, checksum = 0, sum, lineCount = 1, mode;
     char buffer[10],*startAddr,*pointer;
 
@@ -375,8 +456,8 @@ int lfHandler(Command *commands,int index, char* input, int partsCount){
 
         sum = (~(sum)) & 0xFF;
         if (checksum == 0 || sum != checksum){
-                printf("\nChecksum failed Expected: %02X, Actual: %02X - Line: %d",lineCount, checksum,sum);
-                return 0;
+            printf("\nChecksum failed Expected: %02X, Actual: %02X - Line: %d", checksum,sum, lineCount);
+            return 0;
         }
         putchar('>');
 
@@ -422,13 +503,52 @@ Version: 1.0
 }
 
 // Demo
-int demoHandler(Command *commands,int index, char* input, int partsCount){
-    printf("\n Demo \n Args: %s", input);
+int demoHandler(Command *commands,int index, char* input, int partsCount)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handle the demo command.
+            A simple program which uses a potentiometer to control the speed of a motor
+Version: 1.0
+*/{
+    unsigned char * portA, *ddrA, *adctl,*adr1;
+    int counter, delay;
+
+    adctl=(unsigned char*)0x30;
+    *adctl=0x20;
+    adr1=(unsigned char*)0x31;
+    portA=(unsigned char *)0x00;	/*Port A Data register*/
+    ddrA=(unsigned char *)0x01;	  /*Port A Data Direction register*/
+    *ddrA = 0x0F; /* PortA Input=0/Output=1 */
+
+    for(;;){
+        delay = (*adr1 * 8);
+        if(delay < 50){
+            delay = 50;
+        }else if(delay > 2000){
+            delay = 2000;
+        }
+        *portA = 0x01;
+        for(counter = 0; counter < delay; counter++);
+        *portA = 0x03;
+        for(counter = 0; counter < delay; counter++);
+        *portA = 0x02;
+        for(counter = 0; counter < delay; counter++);
+        *portA = 0x06;
+        for(counter = 0; counter < delay; counter++);
+        *portA = 0x04;
+        for(counter = 0; counter < delay; counter++);
+        *portA = 0x0C;
+        for(counter = 0; counter < delay; counter++);
+        *portA = 0x08;
+        for(counter = 0; counter < delay; counter++);
+        *portA = 0x09;
+        for(counter = 0; counter < delay; counter++);
+    }
 }
 
 
 // ### Helper Functions ###
-
 int validateHexArgs(Command *command, char* input, unsigned char** args,int partsCount, int expectedArgs)
 /* Author Haydn Gynn
 Company: Staffordshire University
@@ -480,9 +600,8 @@ Version: 2.0
     int Input, length = 0;
 
     while(1){
-        if ((Input = mgetchar()) == EOF){
+        if ((Input = mgetchar()) == EOF)
             return (NULL);
-        }
         if (Input == '\n'){
             putchar(Input);
             break;
@@ -494,8 +613,7 @@ Version: 2.0
             *(--string) = ' ';
             length--;
         }else if(length < maxlength){
-            *string = Input;
-            string++;
+            *string++ = Input;
             length++;
             putchar(Input);
             if(length >= maxlength && instantMode == 1) {

@@ -1,0 +1,97 @@
+		name ex2
+		org $4000
+		ldaa #$10
+		ldaa $50
+		ldaa $5000
+		ldaa $ff,X
+		ldaa $ff,Y
+		ldab #$10   ;ldab
+		ldab $50
+		ldab $5000
+		ldab $ff,X
+		ldab $ff,Y
+		ldd #$ff10   ;ldd
+		ldd $50
+		ldd $5000
+		ldd $ff,X
+		ldd $ff,Y
+		lds #$10   ;lds
+		lds $50
+		lds $5000
+		lds $ff,X
+		lds $ff,Y
+		ldx #$10   ;ldx
+		ldx $50
+		ldx $5000
+		ldx $ff,X
+		ldx $ff,Y
+		ldy #$10   ;ldy
+		ldy $50
+		ldy $5000
+		ldy $ff,X
+		ldy $ff,Y
+		staa $50	   ;staa
+		staa $5000
+		staa $ff,X
+		staa $ff,Y
+		stab $50	   ;stab
+		stab $5000
+		stab $ff,X
+		stab $ff,Y
+		std $50	   ;std
+		std $5000
+		std $ff,X
+		std $ff,Y
+		sts $50	   ;sts
+		sts $5000
+		sts $ff,X
+		sts $ff,Y
+		stx $50	   ;stx
+		stx $5000
+		stx $ff,X
+		stx $ff,Y
+		sty $50	   ;sty
+		sty $5000
+		sty $ff,X
+		sty $ff,Y
+		suba #$10   ;suba
+		suba $50
+		suba $5000
+		suba $ff,X
+		suba $ff,Y
+		subb #$10   ;subb
+		subb $50
+		subb $5000
+		subb $ff,X
+		subb $ff,Y
+		subd #$10   ;subd
+		subd $50
+		subd $5000
+		subd $ff,X
+		subd $ff,Y
+		adca #$10   ;adca
+		adca $50
+		adca $5000
+		adca $ff,X
+		adca $ff,Y
+		adcb #$10   ;adcb
+		adcb $50
+		adcb $5000
+		adcb $ff,X
+		adcb $ff,Y
+		adda #$10   ;adda
+		adda $50
+		adda $5000
+		adda $ff,X
+		adda $ff,Y
+		addb #$10   ;addb
+		addb $50
+		addb $5000
+		addb $ff,X
+		addb $ff,Y
+		addd #$10   ;addd
+		addd $50
+		addd $5000
+		addd $ff,X
+		addd $ff,Y
+		end
