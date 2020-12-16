@@ -10,6 +10,7 @@
 #define PROGRAM_SIZE 0x49bc
 #define LF_START (char *) (PROGRAM_SIZE + 1000)
 #define LF_MAX (char *)(MAX - STACK_SIZE - 200)
+#define POT_MIDPOINT 1000
 
 typedef struct{
     char key[8];
@@ -20,7 +21,7 @@ typedef struct{
 
 int helpHandler(Command*,int, char*, int),goHandler(Command*,int, char*, int), mmHandler(Command*,int, char*, int), dmHandler(Command*,int, char*, int),
         disHandler(Command*,int, char*, int),lfHandler(Command*,int, char*, int),
-        demoHandler(Command*,int, char*, int), outputHelp(Command*),clearString(char*, int), splitArgs(char*, char**),
+        demoHandler(), outputHelp(Command*),clearString(char*, int), splitArgs(char*, char**),
         validateHexArgs(Command*, char*, unsigned char**,int , int ), strToLower(char *),
         decodeInstruction(unsigned char *, char *),
         mgetchar(), trim(char*, char*), addOperand(int , char *, unsigned char *, int),
@@ -187,33 +188,33 @@ Purpose: Handles the display memory command,
 Functions used: printf(), validateHexArgs()
 Version: 1.0
 */{
-    unsigned char *startPos, *lineStart;
+    unsigned char *pointer, *lineStart;
     int lineCount;
 
-    if(!validateHexArgs(&commands[index], input, &startPos,partsCount, 1)) return 0;
+    if(!validateHexArgs(&commands[index], input, &pointer,partsCount, 1)) return 0;
 
     printf("\nAddress             Hexdata               ASCII");
 
-    for(lineCount = 0; lineCount <= 15 && startPos <= MAX; lineCount++){
-        printf("\n %04X    ", startPos);
+    for(lineCount = 0; lineCount <= 15 && pointer <= MAX; lineCount++){
+        printf("\n %04X    ", pointer);
 
         //Hex Output
-        for(lineStart = startPos;startPos < lineStart + 10 && startPos <= MAX; startPos++){
-            printf("%02X ", *startPos);
+        for(lineStart = pointer;pointer < lineStart + 10 && pointer <= MAX; pointer++){
+            printf("%02X ", *pointer);
         }
 
         //Padding
-        if (startPos != lineStart +10){
-            printf("%*c", lineStart - startPos, ' ');
+        if (pointer != lineStart + 10){
+            printf("%*c", (10 - (pointer - lineStart)) * 3, ' ');
         }
         printf("    ");
 
         //ASCII output
-        for(startPos = lineStart; startPos < lineStart + 10 && startPos <= MAX; startPos++){
-            if (*startPos > 127 || *startPos < 32){
+        for(pointer = lineStart; pointer < lineStart + 10 && pointer <= MAX; pointer++){
+            if (*pointer > 127 || *pointer < 32){
                 printf(".");
             }else{
-                printf("%c", *startPos);
+                printf("%c", *pointer);
             }
         }
     }
@@ -269,7 +270,6 @@ Version: 1.0
     //Prefix
     while(instructionStart == instruction){
         if (offset > 3) break;
-
         printf("%02X ", *pos);
         switch (*pos & 0x85) {
             case 0x84:
@@ -329,6 +329,7 @@ Version: 1.0
 */{
     switch (*pos & 0xCF) {
         case 0xC3:
+            *is16Bit = 1;
             instruction += sprintf(instruction,"dd");break;
         case 0xCB:
             instruction += sprintf(instruction,"db");break;
@@ -358,6 +359,7 @@ Version: 1.0
             }else{
                 instruction += sprintf(instruction,"y");
             }
+            *is16Bit = 1;
             break;
     }
     return instruction;
@@ -376,11 +378,10 @@ Version: 1.0
     mask = *pos & 0x30;
     if(mask == 0x00){
         instruction += sprintf(instruction, "#");
-        if(is16Bit == 1 && *(pos+1) == 0){
+        if(is16Bit == 1 && *(pos+1) == 0){ //If data is 0010 only show as 10 (skips over byte)
             printf("%02X ", *(pos + 1));
             offset++;
             pos++;
-        } else{
             is16Bit = 0;
         }
     }
@@ -392,7 +393,7 @@ Version: 1.0
         } else if(before == 0x18 || before == 0xCD){ //IND Y
             instruction += sprintf(instruction, ",Y");
         }
-    }else if((is16Bit == 0 && mask == 0x00) || mask == 0x30){
+    }else if((is16Bit == 1 && mask == 0x00) || mask == 0x30){ //2 BYTE data (EXT and REG D, S, LDX, LDY)
         instruction += sprintf(instruction, "%02X", *(pos + 2));
         printf("%02X ", *(pos + 2));
         offset++;
@@ -410,12 +411,13 @@ Purpose: Handle the load file command.
 Functions used: printf(), strToHex(), mgetchar()
 Version: 1.0
 */{
-    int data, lineLength, count = 0, checksum = 0, sum, lineCount = 1, mode;
+    int data, lineLength, count = 0, checksum = 0, sum, lineCount = 1;
     char buffer[10],*startAddr,*pointer;
 
-    printf("\n%*cMotorola S decoder program\n%*c%*c\n\nStart the download for the file\n\n", 10, ' ', 10, ' ', 10, '_');
+    printf("\n%*cMotorola S decoder program\n%*c %*c\n\nStart the download for the file\n\n", 10, ' ', 10, ' ', 10, '_');
 
     while(1){
+        count = 0;
         //Read in first 8 characters, ensuring first value is an 'S'
         while (count < 8){
             buffer[count++] = mgetchar();
@@ -423,7 +425,11 @@ Version: 1.0
                 count = 0;
             }
         }
-        mode = buffer[1];
+        if(buffer[1] != '1' && buffer[1] != '9'){
+            printf("\nInvalid start of line - Line: %d",lineCount);
+            return 0;
+        }
+
         lineLength = strToHex(buffer + 2, 1);
         startAddr = (char *) strToHex(buffer + 4, 2);
 
@@ -436,14 +442,14 @@ Version: 1.0
             return 0;
         }
 
-        sum = ((int)startAddr & 0xFF) + ((int)startAddr >> 8) + lineLength;
+        sum = ((int)startAddr >> 8) + ((int)startAddr & 0xFF)  + lineLength;
         pointer = startAddr;
         //Read the rest of the line
         while (startAddr < (pointer + lineLength-2)){
-            buffer[0] = mgetchar();
-            buffer[1] = mgetchar();
-            if ((data = strToHex(buffer, 1)) == -1){
-                printf("\nInvalid hex digits in the 'data' - Line: %d - (%c%c)",lineCount, buffer[0],buffer[1]);
+            buffer[8] = mgetchar();
+            buffer[9] = mgetchar();
+            if ((data = strToHex(buffer + 8, 1)) == -1){
+                printf("\nInvalid hex digits in the 'data' - Line: %d - (%c%c)",lineCount, buffer[8],buffer[9]);
                 return 0;
             }
             if(startAddr == (pointer + lineLength-3)){
@@ -459,14 +465,13 @@ Version: 1.0
             printf("\nChecksum failed Expected: %02X, Actual: %02X - Line: %d", checksum,sum, lineCount);
             return 0;
         }
-        putchar('>');
 
-        if(mode == '9'){
+        putchar('>');
+        if(buffer[1] == '9'){
             printf("\n\nFile sucessfully uploaded. Start address: %X", pointer);
             break;
         }
         lineCount++;
-        count = 0;
     }
     return 1;
 }
@@ -503,7 +508,7 @@ Version: 1.0
 }
 
 // Demo
-int demoHandler(Command *commands,int index, char* input, int partsCount)
+int demoHandler()
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
@@ -512,38 +517,49 @@ Purpose: Handle the demo command.
 Version: 1.0
 */{
     unsigned char * portA, *ddrA, *adctl,*adr1;
-    int counter, delay;
-
+    int timer = 0, counter = 0, sequence[8] = {1, 2, 3, 6, 4, 12, 8, 9};
+    double delay;
     adctl=(unsigned char*)0x30;
     *adctl=0x20;
     adr1=(unsigned char*)0x31;
     portA=(unsigned char *)0x00;	/*Port A Data register*/
-    ddrA=(unsigned char *)0x01;	  /*Port A Data Direction register*/
-    *ddrA = 0x0F; /* PortA Input=0/Output=1 */
+    ddrA=(unsigned char *)0x01;	    /*Port A Data Direction register*/
+    *ddrA = 0x0F;                   /* PortA Input=0/Output=1 */
+
+    printf("Motor demo (BI-Directional) - Potentiometer control\n\n");
+    printf("Plug RED Power wire to 5Volt on board\n");
+    printf("Plug BLACK Power wire to GND on board\n\n");
+    printf("Plug Stepper RED wire to PORT A0\n");
+    printf("Plug Stepper WHITE wire to PORT A1\n");
+    printf("Plug Stepper GREEN wire to PORT A2\n");
+    printf("Plug Stepper BLACK wire to PORT A3\n\n");
+    printf("Plug Potentiometer RED Power wire to 5Volt on board\n");
+    printf("Plug Potentiometer BLACK Power wire to GND on board\n");
+    printf("Plug Potentiometer GREEN wire to E0\n\n");
+    printf("Watch motor spin, the potentiometer will alter speed and direction\n");
 
     for(;;){
-        delay = (*adr1 * 8);
-        if(delay < 50){
-            delay = 50;
-        }else if(delay > 2000){
-            delay = 2000;
+        while(((*adctl) & 0x80) == 0x00);
+        delay = (*adr1 * 9);
+
+        *portA = sequence[counter];
+
+        //Alter direction of motor
+        counter += (delay > POT_MIDPOINT) ? 1 : -1;
+
+        if(counter > 8){
+            counter = 0;
+        } else if(counter < 0){
+            counter = 8;
         }
-        *portA = 0x01;
-        for(counter = 0; counter < delay; counter++);
-        *portA = 0x03;
-        for(counter = 0; counter < delay; counter++);
-        *portA = 0x02;
-        for(counter = 0; counter < delay; counter++);
-        *portA = 0x06;
-        for(counter = 0; counter < delay; counter++);
-        *portA = 0x04;
-        for(counter = 0; counter < delay; counter++);
-        *portA = 0x0C;
-        for(counter = 0; counter < delay; counter++);
-        *portA = 0x08;
-        for(counter = 0; counter < delay; counter++);
-        *portA = 0x09;
-        for(counter = 0; counter < delay; counter++);
+        //flatten curve at bottom
+        delay = delay >= 800 && delay <= 1200 ? 1000 : delay;
+        //Map value onto a curve, scales the inputs to more reasonable values.
+        //The curve allows the speed control for the forward/reverse options
+        delay = ((delay - POT_MIDPOINT) * (delay - POT_MIDPOINT)) / 15000;
+
+        for(timer = 0; timer < delay; timer++);
+
     }
 }
 
