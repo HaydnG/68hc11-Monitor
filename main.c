@@ -262,8 +262,7 @@ Purpose: Used by disHandler
             signaling how many bytes to jump ahead for the next command.
 Functions used: sprintf(), addSuffix(), addOperand(), printf()
 Version: 1.0
-*/
-{
+*/{
     int offset = 0, before = 0, is16Bit = 0;
     char *instructionStart = instruction;
 
@@ -376,7 +375,7 @@ Version: 1.0
 */{
     int mask, offset = 0;
     mask = *pos & 0x30;
-    if(mask == 0x00){
+    if(mask == 0x00){ // IMM mode
         instruction += sprintf(instruction, "#");
         if(is16Bit == 1 && *(pos+1) == 0){ //If data is 0010 only show as 10 (skips over byte)
             printf("%02X ", *(pos + 1));
