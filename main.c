@@ -1,53 +1,81 @@
-//#include <stdio.h>
 
 #define INPUT_SIZE 32
 #define COMMANDS 7
+#define MAX_ARGS 2
 #define MIN (char *)0x400
 #define MAX (char *)0x7DFF
 #define NULL ((void *)0)
 #define EOF (-1)
-#define STACK_SIZE 872
-#define PROGRAM_SIZE 0x49bc
-#define LF_START (char *) (PROGRAM_SIZE + 1000)
+#define STACK_SIZE 962
+#define PROGRAM_SIZE 0x5756
+#define LF_START (char *) (PROGRAM_SIZE + 500)
 #define LF_MAX (char *)(MAX - STACK_SIZE - 200)
 #define POT_MIDPOINT 1000
+#define VERSION "1.1"
+
+/*Author: Haydn Gynn
+Company: Staffordshire University
+Date: 05/12/2020
+Version 1.1
+Purpose: 68HC11 Monitor program
+            Implements: Help
+                        Go
+                        MM
+                        DM
+                        DIS
+                        LF
+                        DEMO
+
+Updates:
+    Version     Author          Date            Purpose
+    1.0         Haydn Gynn      05/12/2020      Initial Version
+    1.1         Haydn Gynn      05/01/2021      Fixed bugs raised during testing
+*/
+
 
 typedef struct{
+    int index;
     char key[8];
     char usage[32];
     char description[32];
-    int (*handler)(void*,int, char*, int);
+    int (*handler)(void*, int, unsigned char**);
+    int params;
 }Command;
 
-int helpHandler(Command*,int, char*, int),goHandler(Command*,int, char*, int), mmHandler(Command*,int, char*, int), dmHandler(Command*,int, char*, int),
-        disHandler(Command*,int, char*, int),lfHandler(Command*,int, char*, int),
-        demoHandler(), outputHelp(Command*),clearString(char*, int), splitArgs(char*, char**),
-        validateHexArgs(Command*, char*, unsigned char**,int , int ), strToLower(char *),
+int goHandler(Command*, int, unsigned char** args), go(unsigned char *arg);
+int helpHandler( Command*, int,  unsigned char** args), outputHelp(Command*);
+int mmHandler(Command*, int, unsigned char** args), mm(unsigned char *arg, int);
+int dmHandler(Command*, int, unsigned char** args), dm(unsigned char *arg, int);
+int disHandler(Command*, int, unsigned char** args), dis(unsigned char *start, unsigned char *end);
+int lfHandler(), lf();
+int demoHandler(), demo();
+int handleCommand(Command*, char*), clearString(char*, int), splitArgs(char*, char**),
+        validateHexArgs(Command*, char*, unsigned char**,int), strToLower(char *),
         decodeInstruction(unsigned char *, char *),
         mgetchar(), trim(char*, char*), addOperand(int , char *, unsigned char *, int),
         strToHex(char *, int);
 
-char *mgets(char*, int, int), *addSuffix(int , char *, unsigned char *, int *), *decodeMode(int , char *, unsigned char *);
+char *mgets(char*, int, int), *addSuffix(int , char *, unsigned char *, int *);
 
 
 void main() {
-    char input[INPUT_SIZE],trimmedInput[INPUT_SIZE], *pointer;
-    char **args;
-    int partsCount, c, i;
+    char input[INPUT_SIZE];
+    int c;
 
     // Key, Usage, Description, Handler
     Command commands[COMMANDS] = {
-            {"help"   ,"<help>"                           ,"Monitor help"             , helpHandler},   //0
-            {"go"     ,"<go 'start addr'>"                ,"Execute program"          , goHandler},     //1
-            {"mm"     ,"<mm 'start addr'>"                ,"Memory modify"            , mmHandler},     //2
-            {"dm"     ,"<dm 'start addr'>"                ,"Display memory"           , dmHandler},     //3
-            {"dis"    ,"<dis 'start addr' 'stop addr'>"   ,"Disassemble into assembly", disHandler},    //4
-            {"lf"     ,"<lf 'filename'>"                  ,"Load S19 file"            , lfHandler},     //5
-            {"demo"   ,"<demo>"                           ,"Stepper motor program"    , demoHandler}};  //6
+            {0,"help"   ,"<help>"                           ,"Monitor help"             , helpHandler,    0},   //0
+            {1,"go"     ,"<go 'start addr'>"                ,"Execute program"          , goHandler,      1},   //1
+            {2,"mm"     ,"<mm 'start addr'>"                ,"Memory modify"            , mmHandler,      1},   //2
+            {3,"dm"     ,"<dm 'start addr'>"                ,"Display memory"           , dmHandler,      1},   //3
+            {4,"dis"    ,"<dis 'start addr' 'stop addr'>"   ,"Disassemble into assembly", disHandler,     2},   //4
+            {5,"lf"     ,"<lf>"                             ,"Load S19 file"            , lfHandler,      0},   //5
+            {6,"demo"   ,"<demo>"                           ,"Stepper motor program"    , demoHandler,    0}};  //6
+
 
     printf("\r\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     printf("##########################################################################\n\n");
-    printf("68HC11 HMonitor V1.0\n");
+    printf("68HC11 HMonitor %s\n", VERSION);
     printf("Copyright Haydn Gynn\n\n");
     printf("Type help for commands\n");
     outputHelp(commands);
@@ -60,52 +88,150 @@ void main() {
         clearString(input, INPUT_SIZE);
         printf("\nCommand :> ");
         if(mgets(input,INPUT_SIZE - 1, 0) !=NULL){
-
-            if((partsCount = trim(input, trimmedInput)) <= 0){
-                continue;
-            }
-            //separate trimmedInput and args with \0, args pointer set to start of args
-            if (partsCount > 1){
-                if(splitArgs(trimmedInput, args) == 0){
-                    continue;
-                }
-            }
-
-            if(strToLower(trimmedInput) == 0){
-                continue;
-            }
-
-            // Handle command
-            for(c = 0; c < COMMANDS; c++){
-                if (!strcmp(commands[c].key, trimmedInput)){
-                    if((*commands[c].handler)(commands,c,*args, partsCount) == 0){
-                        printf("\nFailed to execute command");
-                    }
-                    break;
-                }
+            if (!handleCommand(commands, input)){
+                printf("\nFailed to execute command");
             }
         }
     }while(1);
 }
 
-// ### Command Handlers ###
-
-// Help
-int helpHandler(Command *commands,int index, char* input, int partsCount)
+int handleCommand(Command *commands, char *input)
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
-Purpose: Handles the help command, checks for correct usage and outputs relevant helpful command information
-Functions used: outputHelp(), printf()
+Purpose: Handles the parsing and execution of a command, given a string input
+Functions used: trim(), splitArgs(), strToLower(), strcmp(), validateHexArgs(), and handler command
 Version: 1.0
 */{
-    if (partsCount > 1){
-        printf("\nNo arguments required, Usage: %s\n", commands[index].usage);
-    } // Continue command execution after warning
-    outputHelp(commands);
+    char trimmedInput[INPUT_SIZE];
+    int partsCount, i;
+    char **args;
+    unsigned char *argsList[MAX_ARGS];
 
-    return 1;
+    if((partsCount = trim(input, trimmedInput)) <= 0){
+        return 0;
+    }
+    //separate the command and args with \0, args pointer set to start of args string
+    if (partsCount > 1){
+        if(splitArgs(trimmedInput, args) == 0){
+            return 0;
+        }
+    }
+
+    if(strToLower(trimmedInput) == 0){
+        return 0;
+    }
+
+    // Handle command - Using the commandHandler approach allows the monitor to be easily expanded up by adding more commands
+    // It allows easy dropping in of commands, provided they have the correct definitions
+    // Although a lot may seem like unnecessary code, especially for a monitor program that is required to be small,
+    // i believe a method like this might be more maintainable and allow for future expansions
+    for(i = 0; i < COMMANDS; i++){
+        if (!strcmp(commands[i].key, trimmedInput)){
+
+            if(!validateHexArgs(&commands[i], *args, (unsigned char **)&argsList, partsCount)){
+                return 0;
+            }
+
+            //Execute commandHandler function found
+            return (*commands[i].handler)(commands, i, (unsigned char **)&argsList);
+        }
+    }
 }
+
+// ### Command Handlers ###
+
+// Help
+int helpHandler(Command *commands, int index, unsigned char** args)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the help command
+Functions used: outputHelp()
+Version: 1.0
+*/{
+    return outputHelp(commands);
+}
+
+// Go
+int goHandler(Command *command, int index, unsigned char** args)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the go command
+Functions used: go()
+Version: 1.0
+*/{
+    return go(args[0]);
+}
+
+// Memory modify
+int mmHandler(Command *command, int index, unsigned char** args)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the modify memory command.
+Functions used: mm()
+Version: 1.0
+*/{
+    return mm(args[0], 1); //InstantMode enabled for quick input
+}
+
+// Display memory
+int dmHandler(Command *command, int index, unsigned char** args)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the display memory command,
+Functions used: dm()
+Version: 1.0
+*/{
+    return dm(args[0], 15);
+}
+
+// Disassemble
+int disHandler(Command *command, int index, unsigned char** args)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handles the disAssembly command,
+Functions used: dis()
+Version: 1.0
+*/{
+    if (args[0] > args[1]){
+        printf("\nPlease ensure the End value is greater than the Start value.\n");
+        return 0;
+    }
+
+    return dis(args[0], args[1]);
+}
+
+// Load file
+int lfHandler()
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handle the load file command.
+Functions used: lf()
+Version: 1.0
+*/{
+    return lf();
+}
+
+
+// Demo
+int demoHandler()
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: Handle the demo command.
+Version: 1.0
+*/{
+    return demo();
+}
+
+// ########################## Commands ####################################
+
 int outputHelp(Command *commands)
 /* Author Haydn Gynn
 Company: Staffordshire University
@@ -124,74 +250,66 @@ Version: 1.0
     return 1;
 }
 
-// Go
-int goHandler(Command *commands,int index, char* input, int partsCount)
+int go(unsigned char* args)
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
 Purpose: Handles the go command,
             Executes the specified place in memory
-Functions used: validateHexArgs()
+Functions used: anonymous function
 Version: 1.0
 */{
-    unsigned char*(*startPos)();
-
-    if(!validateHexArgs(&commands[index], input, (unsigned char **) &startPos, partsCount, 1)) return 0;
-
-    startPos();
+    ((unsigned char *(*)()) args)();
 
     return 1;
 }
 
-// Memory modify
-int mmHandler(Command *commands,int index, char* input, int partsCount)
+int mm(unsigned char *startPos, int instantMode)
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
-Purpose: Handles the modify memory command,
-            Allows the modifying of memory, byte by byte. Terminating with '.'
-Functions used: printf(), validateHexArgs(), sscanf(), mgets()
+Purpose: Allows the modifying of memory, byte by byte. Terminating with '.'
+            The input mode can be changed to InstantMode(1) or slowMode(0)
+                If in instantMode, it doesnt wait for carriageReturn upon entering values.
+Functions used: printf(), sscanf(), mgets()
 Version: 1.0
 */{
     char hexInput[3];
-    unsigned char *startPos;
     unsigned int value;
-
-    if(!validateHexArgs(&commands[index], input, &startPos,partsCount, 1)) return 0;
 
     printf("Address     Hex Data\n");
     do{
         printf("%04X      %02X    : ", startPos, *startPos);
 
-        if(mgets(hexInput,2,1) !=NULL){//InstantMode enabled for quick input
-            if(hexInput[0] == '.'){
+        if(mgets(hexInput,2,instantMode) !=NULL){
+            if(hexInput[0] == '.' || hexInput[1] == '.'){
                 break;
             }else if (sscanf(hexInput, "%2x", &value) != 1){
-                printf("\nPlease enter in either <.> to terminate <cr> to skip or <Hex data> to change");
+                printf("\nPlease enter in <.> to terminate, <cr> to skip, <Hex data> to input\n");
                 continue;
             }
             *startPos = value;
         }
         startPos++;
+        if (startPos < MIN || startPos > MAX){
+            printf("\nCannot surpass maximum address (%04X)", MAX);
+            return 1;
+        }
+
     }while (1);
 
     return 1;
 }
 
-// Display memory
-int dmHandler(Command *commands,int index, char* input, int partsCount)
+int dm(unsigned char *pointer, int lineCount)
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
-Purpose: Handles the display memory command,
-            Displays a specified section of memory, along with the equivalent ascii data
-Functions used: printf(), validateHexArgs()
+Purpose: Displays a specified section of memory based on the startPointer and how many lines specified, along with the equivalent ascii data
+Functions used: printf()
 Version: 1.0
 */{
-    unsigned char *pointer, *lineStart;
-    int lineCount;
-
-    if(!validateHexArgs(&commands[index], input, &pointer,partsCount, 1)) return 0;
+    unsigned char *lineStart;
 
     printf("\nAddress             Hexdata               ASCII");
 
@@ -222,33 +340,28 @@ Version: 1.0
     return 1;
 }
 
-// Disassemble
-int disHandler(Command *commands,int index, char* input, int partsCount)
+dis(unsigned char* start, unsigned char* end)
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
-Purpose: Handles the disAssembly command,
-            Disassembles machine code with a given start and end address.
-Functions used: clearString(), validateHexArgs(), printf(), decodeInstruction()
+Purpose: Disassembles machine code with a given start and end address.
+Functions used: clearString(), printf(), decodeInstruction()
 Version: 1.0
 */{
-    unsigned char *startPos[2];
     char instruction[16];
     int iCount = 1;
 
     clearString(instruction, 10);
 
-    if(!validateHexArgs(&commands[index], input, &startPos[0],partsCount, 2)) return 0;
+    printf("\n %04X                 %3d    ORG  $%04X",start,iCount++, start);
+    while(start <= end){
+        printf("\n %04X  ", start);
 
-    printf("\n %04X                 %3d    ORG  $%04X",startPos[0],iCount++, startPos[0]);
-    while(startPos[0] <= startPos[1]){
-        printf("\n %04X  ", startPos[0]);
-
-        startPos[0] += decodeInstruction(startPos[0], instruction);
+        start += decodeInstruction(start, instruction);
 
         printf("%3d    %s",iCount++, instruction);
     }
-    printf("\n %04X                 %3d   END", startPos[0],iCount);
+    printf("\n %04X                 %3d   END", start,iCount);
     return 1;
 }
 
@@ -270,7 +383,7 @@ Version: 1.0
     while(instructionStart == instruction){
         if (offset > 3) break;
         printf("%02X ", *pos);
-        switch (*pos & 0x85) {
+        switch (*pos & 0x85) { // Apply different masks to find first part of command
             case 0x84:
                 instruction += sprintf(instruction,"ld");
                 break;
@@ -326,7 +439,7 @@ Purpose: Used by decodeInstruction
 Functions used: sprintf()
 Version: 1.0
 */{
-    switch (*pos & 0xCF) {
+    switch (*pos & 0xCF) { //Apply mask to find suffix of command
         case 0xC3:
             *is16Bit = 1;
             instruction += sprintf(instruction,"dd");break;
@@ -347,7 +460,7 @@ Version: 1.0
         case 0xC7:case 0xC6:
             instruction += sprintf(instruction,"ab");break;
         case 0xCC:case 0xCD:case 0x83:
-            *is16Bit = 1;
+            *is16Bit = 1; //Mask as that command uses a 16bit register
             instruction += sprintf(instruction,"d");break;
         case 0x8E:case 0x8F:
             *is16Bit = 1;
@@ -370,6 +483,7 @@ Company: Staffordshire University
 Created: 04/12/2020
 Purpose: Used by decodeInstruction
             Adds the operand (Value) onto the assembly instruction
+            Figures out how to display the numerical part of the command
 Functions used: sprintf()
 Version: 1.0
 */{
@@ -400,20 +514,21 @@ Version: 1.0
     return ++offset;
 }
 
-// Load file
-int lfHandler(Command *commands,int index, char* input, int partsCount)
+int lf()
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
-Purpose: Handle the load file command.
-            Decodes an S record file, loading it into memory
+Purpose: Decodes an S record file, loading it into memory
 Functions used: printf(), strToHex(), mgetchar()
 Version: 1.0
 */{
     int data, lineLength, count = 0, checksum = 0, sum, lineCount = 1;
-    char buffer[10],*startAddr,*pointer;
+    char buffer[10],*startAddr,*pointer, *lastAddr;
 
-    printf("\n%*cMotorola S decoder program\n%*c %*c\n\nStart the download for the file\n\n", 10, ' ', 10, ' ', 10, '_');
+    printf("\n%*cMotorola S decoder program\n", 10, ' ');
+    printf("%*c______________________", 12, ' ');
+    printf("%*c\n\n", 10, '_');
+    printf("Start the download for the file (Min Address: %04X, Max Address: %04X)\n\n", LF_START, LF_MAX);
 
     while(1){
         count = 0;
@@ -467,52 +582,20 @@ Version: 1.0
 
         putchar('>');
         if(buffer[1] == '9'){
-            printf("\n\nFile sucessfully uploaded. Start address: %X", pointer);
+            printf("\n\nFile sucessfully uploaded. Start address: %X, End address: %X", pointer, lastAddr);
             break;
         }
         lineCount++;
+        lastAddr = startAddr;
     }
     return 1;
 }
 
-int strToHex(char *start, int bytes)
+int demo()
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
-Purpose: A specialised lightweight function used when loading a file.
-        Converts an ascii string into a validated hex value.
-        Supports multiple byte hex values.
-Version: 1.0
-*/
-{
-    int total = -1, value;
-    char *p;
-
-    for (p = start;start <= p + ((bytes*2)-1); start++) {
-        value = *start;
-        if(value >= 'A' && value <= 'F'){
-            value = value - 55;
-        }else if(value >= '0' && value <= '9'){
-            value = value - 48;
-        } else{
-            return -1;
-        }
-        if(total != -1){
-            total = (total << 4) + value;
-        } else{
-            total = value;
-        }
-    }
-    return total;
-}
-
-// Demo
-int demoHandler()
-/* Author Haydn Gynn
-Company: Staffordshire University
-Created: 04/12/2020
-Purpose: Handle the demo command.
-            A simple program which uses a potentiometer to control the speed of a motor
+Purpose: A simple program which uses a potentiometer to control the speed of a motor
 Version: 1.0
 */{
     unsigned char * portA, *ddrA, *adctl,*adr1;
@@ -562,32 +645,79 @@ Version: 1.0
     }
 }
 
+// ################# Helper Functions ######################
 
-// ### Helper Functions ###
-int validateHexArgs(Command *command, char* input, unsigned char** args,int partsCount, int expectedArgs)
+int strToHex(char *start, int bytes)
+/* Author Haydn Gynn
+Company: Staffordshire University
+Created: 04/12/2020
+Purpose: A specialised lightweight function used when loading a file.
+        Converts an ascii string into a validated hex value.
+        Supports multiple byte hex values.
+        Provide a start address, and how many bytes the Hex number is expected to have
+Version: 1.0
+*/
+{
+    int total = -1, value;
+    char *p;
+
+    for (p = start;start <= p + ((bytes*2)-1); start++) {
+        value = *start;
+        if(value >= 'A' && value <= 'F'){
+            value = value - 55;
+        }else if(value >= '0' && value <= '9'){
+            value = value - 48;
+        } else{
+            return -1;
+        }
+        if(total != -1){
+            total = (total << 4) + value;
+        } else{
+            total = value;
+        }
+    }
+    return total;
+}
+
+int validateHexArgs(Command *command, char* input, unsigned char** args, int partsCount)
 /* Author Haydn Gynn
 Company: Staffordshire University
 Created: 04/12/2020
 Functions used: sscanf(), printf()
 Purpose: a universal function for parsing the hex command parameters,
-        Expects memory from the args pointer to already be allocated with enough room to store the expectedArgs.
-        Validates input is correct Hex, and ensures its within the correct range.
+        Expects memory from the args pointer to already be allocated with enough room to store all the params.
+        Validates input is correct Hex digits, and ensures its within the correct range.
 Version: 1.0
 */{
-    int i;
+    int i, bytes = 0;
 
-    if (partsCount <= expectedArgs || partsCount > expectedArgs + 1){
+    if (partsCount == 1 && command->params == 0){
+        return 1;
+    }
+
+    if (partsCount > command->params + 1){
+        printf("\nToo many arguments specified, Usage: %s\n", command->usage);
+        printf("\nContinuing command execution\n");
+        if (command->params == 0){
+            return 1;
+        }
+    } // Continue command execution after warning
+
+    if (partsCount <= command->params){
         printf("\nIncorrect usage. Please use %s", command->usage);
         return 0; // Stop command execution, ensure correct usage.
     }
 
-    // Currently only accommodates a maximum of 3 args inputs, can be expanded upon
-    if (sscanf(input, "%x %x %x", args, args + 1, args + 2) != expectedArgs){
-        printf("\nAddress must be in hex i.e 0-9 A-F");
-        return 0;
-    }
+    //Max 3 number of reads currently, can increase if needed
 
-    for(i = 0;i < expectedArgs; i++){
+
+    for(i = 0; i < command->params; i++){
+        if (sscanf(input, "%x%n", args + i, &bytes) != 2){
+            printf("\nAddress must be in hex i.e 0-9 A-F");
+            return 0;
+        }
+        input += bytes;
+
         if (*(args + i) < MIN || *(args + i) > MAX){
             printf("\nThe address range is 400 -> 7DFF");
             return 0;
