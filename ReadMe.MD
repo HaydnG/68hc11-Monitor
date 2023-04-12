@@ -3,8 +3,8 @@ Ansi C OS Monitor Code for the Motorola 68HC11 MicroController
 This is a small monitor application that can be ran on the 68HC11 MicroController
 
 # Features
-.Help Menu
-.Go Command - Execute an application at a given memory address
+- Help Menu
+- Go Command - Execute an application at a given memory address
 
 
 # ScreenShots
