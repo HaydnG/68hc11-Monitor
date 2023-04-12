@@ -9,7 +9,7 @@ This is a small monitor application that can be ran on the 68HC11 MicroControlle
 - DisplayMemory - Displays A given block of memory - HEX / ASCII
 - Disassembler - Disassemble a given block of memory into Assembly
 - FileLoad - Allows the Loading of an .s19 file.
-- Demo - Runs a demo program that controls a stepper motor connected up to the MicroController
+- Demo - Runs a demo program that controls a stepper motor connected up to the MicroController (Reading input from a poteniometer to control the motor)
 
 # Images
 
